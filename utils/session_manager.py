@@ -7,6 +7,7 @@ import streamlit as st
 
 from core.rag_pipeline import RAGPipeline
 from core.exceptions import RAGChatbotError
+from config.settings import get_model_by_display_name, get_available_models, get_default_model
 
 logger = logging.getLogger(__name__)
 
@@ -18,16 +19,20 @@ class SessionManager:
     def initialize_session() -> None:
         """Initialize session state variables."""
         if "initialized" not in st.session_state:
+            # Get default model from configuration
+            default_model_id, default_display_name = get_default_model()
+            
             st.session_state.initialized = True
             st.session_state.rag_pipeline = None
             st.session_state.chat_history = []
             st.session_state.documents_processed = False
             st.session_state.processing_stats = {}
-            st.session_state.current_model = "Mistral 7B Instruct"
+            st.session_state.current_model_id = default_model_id  # Dynamic default
+            st.session_state.current_model_display_name = default_display_name  # Dynamic default
             st.session_state.error_message = None
             st.session_state.success_message = None
             
-            logger.info("Session initialized")
+            logger.info(f"Session initialized with default model: {default_display_name} ({default_model_id})")
     
     @staticmethod
     def get_rag_pipeline() -> RAGPipeline:
@@ -92,15 +97,86 @@ class SessionManager:
         return st.session_state.get("processing_stats", {})
     
     @staticmethod
-    def set_current_model(model_name: str) -> None:
-        """Set current model."""
-        st.session_state.current_model = model_name
-        logger.info(f"Current model set to: {model_name}")
+    def set_current_model(display_name: str) -> None:
+        """Set current model by display name."""
+        try:
+            # Get model ID from display name
+            model_id = get_model_by_display_name(display_name)
+            if not model_id:
+                raise ValueError(f"Model not found: {display_name}")
+            
+            # Update session state
+            st.session_state.current_model_display_name = display_name
+            st.session_state.current_model_id = model_id
+            
+            # Update RAG pipeline if available
+            if st.session_state.rag_pipeline:
+                st.session_state.rag_pipeline.set_model(model_id)
+            
+            logger.info(f"Current model set to: {display_name} ({model_id})")
+            
+        except Exception as e:
+            logger.error(f"Failed to set model: {e}")
+            raise
     
     @staticmethod
-    def get_current_model() -> str:
-        """Get current model."""
-        return st.session_state.get("current_model", "Mistral 7B Instruct")
+    def set_current_model_by_id(model_id: str) -> None:
+        """Set current model by model ID."""
+        try:
+            # Get display name from model ID
+            available_models = get_available_models()
+            display_name = None
+            for name, id_val in available_models.items():
+                if id_val == model_id:
+                    display_name = name
+                    break
+            
+            if not display_name:
+                raise ValueError(f"Model ID not found: {model_id}")
+            
+            # Update session state
+            st.session_state.current_model_id = model_id
+            st.session_state.current_model_display_name = display_name
+            
+            # Update RAG pipeline if available
+            if st.session_state.rag_pipeline:
+                st.session_state.rag_pipeline.set_model(model_id)
+            
+            logger.info(f"Current model set to: {display_name} ({model_id})")
+            
+        except Exception as e:
+            logger.error(f"Failed to set model: {e}")
+            raise
+    
+    @staticmethod
+    def get_current_model_display_name() -> str:
+        """Get current model display name."""
+        # Get default if not set
+        if "current_model_display_name" not in st.session_state:
+            _, default_display_name = get_default_model()
+            return default_display_name
+        return st.session_state.get("current_model_display_name")
+    
+    @staticmethod
+    def get_current_model_id() -> str:
+        """Get current model ID."""
+        # Get default if not set
+        if "current_model_id" not in st.session_state:
+            default_model_id, _ = get_default_model()
+            return default_model_id
+        return st.session_state.get("current_model_id")
+    
+    @staticmethod
+    def sync_model_with_pipeline() -> None:
+        """Sync the current model with the RAG pipeline."""
+        try:
+            if st.session_state.rag_pipeline:
+                current_model_id = st.session_state.get("current_model_id")
+                if current_model_id:
+                    st.session_state.rag_pipeline.set_model(current_model_id)
+                    logger.info(f"Synced model with pipeline: {current_model_id}")
+        except Exception as e:
+            logger.warning(f"Failed to sync model with pipeline: {e}")
     
     @staticmethod
     def set_error_message(message: str) -> None:
@@ -162,7 +238,8 @@ class SessionManager:
             "session_initialized": st.session_state.get("initialized", False),
             "documents_processed": st.session_state.get("documents_processed", False),
             "chat_history_length": len(st.session_state.get("chat_history", [])),
-            "current_model": st.session_state.get("current_model", "Unknown"),
+            "current_model_display_name": st.session_state.get("current_model_display_name", "Unknown"),
+            "current_model_id": st.session_state.get("current_model_id", "Unknown"),
             "processing_stats": st.session_state.get("processing_stats", {}),
             "pipeline_initialized": pipeline is not None
         }

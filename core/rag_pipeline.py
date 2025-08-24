@@ -35,6 +35,46 @@ class RAGPipeline:
         except Exception as e:
             raise RAGChatbotError(f"Failed to initialize RAG pipeline: {e}")
     
+    def set_model(self, model_name: str) -> None:
+        """Set the current model for the LLM service."""
+        try:
+            self.llm_service.set_model(model_name)
+            logger.info(f"Model set to: {model_name}")
+        except Exception as e:
+            raise RAGChatbotError(f"Failed to set model: {e}")
+    
+    def set_model_by_display_name(self, display_name: str) -> None:
+        """Set model by its display name."""
+        try:
+            self.llm_service.set_model_by_display_name(display_name)
+            logger.info(f"Model set to: {display_name}")
+        except Exception as e:
+            raise RAGChatbotError(f"Failed to set model: {e}")
+    
+    def get_current_model(self) -> str:
+        """Get the current model ID."""
+        return self.llm_service.get_current_model()
+    
+    def get_current_model_display_name(self) -> str:
+        """Get the current model display name."""
+        return self.llm_service.get_current_model_display_name()
+    
+    def get_available_models(self, include_paid: bool = False) -> Dict[str, str]:
+        """Get available models for selection."""
+        return self.llm_service.get_available_models(include_paid)
+    
+    def get_model_info(self, model_name: str) -> Optional[Dict[str, Any]]:
+        """Get detailed information about a model."""
+        return self.llm_service.get_model_info(model_name)
+    
+    def get_current_model_info(self) -> Dict[str, Any]:
+        """Get information about current model configuration."""
+        return self.llm_service.get_current_model_info()
+    
+    def validate_model(self, model_name: str) -> bool:
+        """Validate if a model is available."""
+        return self.llm_service.validate_model(model_name)
+    
     def process_documents(self, files_data: List[Tuple[bytes, str]]) -> Dict[str, Any]:
         """Process uploaded documents and add to vector store."""
         if not files_data:
@@ -200,51 +240,21 @@ class RAGPipeline:
         except Exception as e:
             raise RAGChatbotError(f"Failed to clear documents: {e}")
     
-    def get_pipeline_stats(self) -> Dict[str, Any]:
-        """Get comprehensive pipeline statistics."""
-        stats = {
-            "pipeline_status": "initialized",
-            "documents_loaded": False,
-            "embedding_model": self.embedding_service.get_model_info(),
-            "llm_model": self.llm_service.get_model_info(),
-            "vector_store": {}
-        }
-        
-        if self.vector_store:
-            vector_stats = self.vector_store.get_stats()
-            stats["vector_store"] = vector_stats
-            stats["documents_loaded"] = not self.vector_store.is_empty()
-            stats["pipeline_status"] = "ready" if not self.vector_store.is_empty() else "waiting_for_documents"
-        
-        return stats
-    
     def validate_configuration(self) -> Dict[str, bool]:
-        """Validate pipeline configuration."""
-        validation = {
-            "document_processor": False,
-            "embedding_service": False,
-            "llm_service": False,
-            "vector_store": False,
-            "overall": False
-        }
+        """Validate all pipeline components."""
+        validation = {}
         
         try:
-            # Check document processor
+            # Validate document processor
             validation["document_processor"] = self.document_processor is not None
             
-            # Check embedding service
-            validation["embedding_service"] = (
-                self.embedding_service is not None and
-                self.embedding_service.get_embedding_dimension() > 0
-            )
+            # Validate embedding service
+            validation["embedding_service"] = self.embedding_service is not None
             
-            # Check LLM service
-            validation["llm_service"] = (
-                self.llm_service is not None and
-                self.llm_service.client is not None
-            )
+            # Validate LLM service
+            validation["llm_service"] = self.llm_service is not None
             
-            # Check vector store
+            # Validate vector store
             validation["vector_store"] = self.vector_store is not None
             
             # Overall validation - exclude the "overall" key itself
@@ -258,5 +268,35 @@ class RAGPipeline:
             
         except Exception as e:
             logger.error(f"Configuration validation failed: {e}")
+            validation["overall"] = False
         
         return validation
+    
+    def get_pipeline_stats(self) -> Dict[str, Any]:
+        """Get comprehensive pipeline statistics."""
+        stats = {
+            "pipeline_initialized": True,
+            "current_model": self.get_current_model(),
+            "current_model_display_name": self.get_current_model_display_name(),
+            "available_models_count": len(self.get_available_models()),
+            "vector_store_initialized": self.vector_store is not None
+        }
+        
+        # Add vector store stats if available
+        if self.vector_store:
+            try:
+                vector_stats = self.vector_store.get_stats()
+                stats.update(vector_stats)
+            except Exception as e:
+                logger.warning(f"Could not get vector store stats: {e}")
+                stats["vector_store_stats_error"] = str(e)
+        
+        # Add model info
+        try:
+            model_info = self.get_current_model_info()
+            stats["model_info"] = model_info
+        except Exception as e:
+            logger.warning(f"Could not get model info: {e}")
+            stats["model_info_error"] = str(e)
+        
+        return stats

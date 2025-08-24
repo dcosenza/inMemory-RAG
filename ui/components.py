@@ -6,7 +6,7 @@ import logging
 import streamlit as st
 from langchain.schema import Document
 
-from config.settings import FREE_MODELS, APP_CONFIG
+from config.settings import get_available_models, get_model_info, AVAILABLE_MODELS, APP_CONFIG
 from utils.session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
@@ -58,17 +58,7 @@ class UIComponents:
             
             # Model selection
             st.header("🤖 Model Settings")
-            current_model = SessionManager.get_current_model()
-            
-            selected_model = st.selectbox(
-                "Choose AI Model",
-                options=list(FREE_MODELS.keys()),
-                index=list(FREE_MODELS.keys()).index(current_model) if current_model in FREE_MODELS else 0,
-                help="Select the AI model for generating responses"
-            )
-            
-            if selected_model != current_model:
-                SessionManager.set_current_model(selected_model)
+            UIComponents._render_model_selection()
             
             st.divider()
             
@@ -87,7 +77,71 @@ class UIComponents:
             with st.expander("📊 Session Info"):
                 UIComponents._render_session_info()
             
-            return files_data, selected_model
+            return files_data, SessionManager.get_current_model_id()
+    
+    @staticmethod
+    def _render_model_selection() -> None:
+        """Render model selection interface."""
+        try:
+            # Get available models
+            available_models = get_available_models()
+            current_display_name = SessionManager.get_current_model_display_name()
+            
+            # Ensure current model is in available models (fallback to first if not)
+            if current_display_name not in available_models:
+                logger.warning(f"Current model '{current_display_name}' not in available models, using first available")
+                current_display_name = list(available_models.keys())[0]
+                SessionManager.set_current_model(current_display_name)
+            
+            # Model selection dropdown
+            selected_display_name = st.selectbox(
+                "Choose AI Model",
+                options=list(available_models.keys()),
+                index=list(available_models.keys()).index(current_display_name),
+                help="Select the AI model for generating responses"
+            )
+            
+            # Handle model change
+            if selected_display_name != current_display_name:
+                try:
+                    SessionManager.set_current_model(selected_display_name)
+                    st.success(f"✅ Switched to {selected_display_name}")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Failed to switch model: {str(e)}")
+            
+            # Show current model info
+            current_model_id = SessionManager.get_current_model_id()
+            model_info = get_model_info(current_model_id)
+            
+            if model_info:
+                st.markdown("**Current Model Info:**")
+                
+                # Model capabilities
+                capabilities = model_info.get("capabilities", [])
+                if capabilities:
+                    st.markdown(f"**Capabilities:** {', '.join(capabilities)}")
+                
+                # Model description
+                description = model_info.get("description", "")
+                if description:
+                    st.markdown(f"**Description:** {description}")
+                
+                # Model stats
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Max Tokens", model_info.get("max_tokens", "Unknown"))
+                with col2:
+                    st.metric("Context Length", f"{model_info.get('context_length', 0):,}")
+                
+                # Free/Paid indicator
+                is_free = model_info.get("is_free", True)
+                status = "🆓 Free" if is_free else "💰 Paid"
+                st.markdown(f"**Status:** {status}")
+            
+        except Exception as e:
+            st.error(f"❌ Error loading model selection: {str(e)}")
+            logger.error(f"Model selection error: {e}")
     
     @staticmethod
     def _render_session_info() -> None:
@@ -98,7 +152,7 @@ class UIComponents:
             # Basic info
             st.write(f"**Documents Loaded:** {'✅' if session_info['documents_processed'] else '❌'}")
             st.write(f"**Chat Messages:** {session_info['chat_history_length']}")
-            st.write(f"**Current Model:** {session_info['current_model']}")
+            st.write(f"**Current Model:** {session_info['current_model_display_name']}")
             
             # Processing stats
             if session_info.get('processing_stats'):
@@ -107,6 +161,12 @@ class UIComponents:
                     st.write(f"**Document Chunks:** {stats['documents_created']}")
                 if stats.get('memory_usage_mb'):
                     st.write(f"**Memory Usage:** {stats['memory_usage_mb']:.1f} MB")
+            
+            # Pipeline stats
+            if session_info.get('pipeline_stats'):
+                pipeline_stats = session_info['pipeline_stats']
+                if pipeline_stats.get('available_models_count'):
+                    st.write(f"**Available Models:** {pipeline_stats['available_models_count']}")
         
         except Exception as e:
             st.write("⚠️ Could not load session info")

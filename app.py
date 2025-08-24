@@ -16,7 +16,7 @@ logging.basicConfig(
 )
 
 # Import modules after logging configuration
-from config.settings import FREE_MODELS
+from config.settings import get_available_models, get_model_by_display_name
 from core.exceptions import RAGChatbotError, ConfigurationError
 from utils.session_manager import SessionManager
 from ui.components import UIComponents
@@ -60,17 +60,17 @@ def process_documents(files_data: List[Tuple[bytes, str]]) -> None:
         SessionManager.set_error_message(error_msg)
 
 
-def handle_chat_query(user_input: str, selected_model: str) -> None:
+def handle_chat_query(user_input: str, model_id: str) -> None:
     """Handle user chat query."""
     if not user_input:
         return
     
     try:
         rag_pipeline = SessionManager.get_rag_pipeline()
-        model_name = FREE_MODELS.get(selected_model)
         
-        if not model_name:
-            UIComponents.show_error(f"Invalid model selected: {selected_model}")
+        # Validate model ID
+        if not rag_pipeline.validate_model(model_id):
+            UIComponents.show_error(f"Invalid model selected: {model_id}")
             return
         
         # Add user message to chat history
@@ -86,7 +86,7 @@ def handle_chat_query(user_input: str, selected_model: str) -> None:
                 # Get streaming response
                 response_stream, sources, scores = rag_pipeline.query_streaming(
                     user_input,
-                    model_name=model_name
+                    model_name=model_id
                 )
                 
                 # Render streaming response
@@ -163,6 +163,9 @@ def check_configuration() -> bool:
                 )
                 return False
             
+            # Sync model with pipeline
+            SessionManager.sync_model_with_pipeline()
+            
             return True
             
         except Exception as e:
@@ -188,7 +191,7 @@ def main():
             st.stop()
         
         # Render sidebar and get user inputs
-        files_data, selected_model = UIComponents.render_sidebar()
+        files_data, model_id = UIComponents.render_sidebar()
         
         # Show any pending error/success messages
         error_msg = SessionManager.get_error_message()
@@ -219,7 +222,7 @@ def main():
             
             # Handle chat query
             if user_input:
-                handle_chat_query(user_input, selected_model)
+                handle_chat_query(user_input, model_id)
                 st.rerun()
         
         with col2:

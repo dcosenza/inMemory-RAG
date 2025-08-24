@@ -11,7 +11,11 @@ from config.settings import (
     OPENROUTER_API_KEY, 
     OPENROUTER_BASE_URL,
     SYSTEM_PROMPT,
-    FREE_MODELS
+    AVAILABLE_MODELS,
+    get_available_models,
+    get_model_info,
+    validate_model,
+    get_model_by_display_name
 )
 from core.exceptions import LLMError, ConfigurationError
 
@@ -44,6 +48,31 @@ class LLMService:
             raise ConfigurationError(str(e))
         except Exception as e:
             raise LLMError(f"Failed to initialize OpenRouter client: {e}")
+    
+    def set_model(self, model_name: str) -> None:
+        """Set the current model for the service."""
+        if not validate_model(model_name):
+            raise LLMError(f"Invalid model: {model_name}")
+        
+        self.config.model_name = model_name
+        logger.info(f"Model set to: {model_name}")
+    
+    def set_model_by_display_name(self, display_name: str) -> None:
+        """Set model by its display name."""
+        model_id = get_model_by_display_name(display_name)
+        if not model_id:
+            raise LLMError(f"Model not found: {display_name}")
+        
+        self.set_model(model_id)
+    
+    def get_current_model(self) -> str:
+        """Get the current model ID."""
+        return self.config.model_name
+    
+    def get_current_model_display_name(self) -> str:
+        """Get the current model display name."""
+        model_info = get_model_info(self.config.model_name)
+        return model_info.get("display_name", self.config.model_name) if model_info else self.config.model_name
     
     def _prepare_context(self, relevant_documents: list[Document]) -> str:
         """Prepare context from relevant documents."""
@@ -82,7 +111,13 @@ class LLMService:
         if not self.client:
             raise LLMError("LLM client not initialized")
         
-        model_name = model_name or self.config.model_name
+        # Use provided model or current model
+        if model_name:
+            if not validate_model(model_name):
+                raise LLMError(f"Invalid model: {model_name}")
+        else:
+            model_name = self.config.model_name
+        
         should_stream = stream if stream is not None else self.config.streaming
         
         try:
@@ -102,11 +137,15 @@ class LLMService:
     def _generate_complete_response(self, messages: list, model_name: str) -> str:
         """Generate complete response (non-streaming)."""
         try:
+            # Get model-specific configuration
+            model_info = get_model_info(model_name)
+            max_tokens = model_info.get("max_tokens", self.config.max_tokens) if model_info else self.config.max_tokens
+            
             response = self.client.chat.completions.create(
                 model=model_name,
                 messages=messages,
                 temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens
+                max_tokens=max_tokens
             )
             
             return response.choices[0].message.content
@@ -117,7 +156,7 @@ class LLMService:
                 raise LLMError(
                     "OpenRouter API authentication failed. Please check your API key:\n"
                     "1. Go to https://openrouter.ai/ and get a valid API key\n"
-                    "2. Update your .streamlit/secrets.toml file\n"
+                    "2. Update your .env file\n"
                     "3. Restart the application"
                 )
             else:
@@ -126,11 +165,15 @@ class LLMService:
     def _generate_streaming_response(self, messages: list, model_name: str) -> Iterator[str]:
         """Generate streaming response."""
         try:
+            # Get model-specific configuration
+            model_info = get_model_info(model_name)
+            max_tokens = model_info.get("max_tokens", self.config.max_tokens) if model_info else self.config.max_tokens
+            
             stream = self.client.chat.completions.create(
                 model=model_name,
                 messages=messages,
                 temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens,
+                max_tokens=max_tokens,
                 stream=True
             )
             
@@ -144,7 +187,7 @@ class LLMService:
                 raise LLMError(
                     "OpenRouter API authentication failed. Please check your API key:\n"
                     "1. Go to https://openrouter.ai/ and get a valid API key\n"
-                    "2. Update your .streamlit/secrets.toml file\n"
+                    "2. Update your .env file\n"
                     "3. Restart the application"
                 )
             else:
@@ -160,7 +203,12 @@ class LLMService:
         if not self.client:
             raise LLMError("LLM client not initialized")
         
-        model_name = model_name or self.config.model_name
+        # Use provided model or current model
+        if model_name:
+            if not validate_model(model_name):
+                raise LLMError(f"Invalid model: {model_name}")
+        else:
+            model_name = self.config.model_name
         
         try:
             context = self._prepare_context(relevant_documents)
@@ -175,19 +223,27 @@ class LLMService:
     
     def validate_model(self, model_name: str) -> bool:
         """Validate if a model is available."""
-        return model_name in FREE_MODELS.values()
+        return validate_model(model_name)
     
-    def get_available_models(self) -> Dict[str, str]:
-        """Get available free models."""
-        return FREE_MODELS.copy()
+    def get_available_models(self, include_paid: bool = False) -> Dict[str, str]:
+        """Get available models for selection."""
+        return get_available_models(include_paid)
     
-    def get_model_info(self) -> Dict[str, Any]:
+    def get_model_info(self, model_name: str) -> Optional[Dict[str, Any]]:
+        """Get detailed information about a model."""
+        return get_model_info(model_name)
+    
+    def get_current_model_info(self) -> Dict[str, Any]:
         """Get information about current model configuration."""
+        model_info = get_model_info(self.config.model_name)
+        
         return {
             "current_model": self.config.model_name,
+            "current_display_name": self.get_current_model_display_name(),
             "temperature": self.config.temperature,
             "max_tokens": self.config.max_tokens,
             "streaming": self.config.streaming,
-            "available_models": list(FREE_MODELS.keys()),
-            "client_initialized": self.client is not None
+            "available_models": list(get_available_models().keys()),
+            "client_initialized": self.client is not None,
+            "model_details": model_info or {}
         }
