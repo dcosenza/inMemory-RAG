@@ -104,12 +104,16 @@ class RAGPipeline:
             query_embedding = self.embedding_service.embed_query(question)
             
             # Retrieve relevant documents
+            logger.info(f"Searching for documents with k={max_results}")
             relevant_docs_with_scores = self.vector_store.similarity_search_with_relevance_scores(
                 query_embedding, 
-                k=max_results,
+                k=max_results
             )
             
+            logger.info(f"Retrieved {len(relevant_docs_with_scores)} documents with scores")
+            
             if not relevant_docs_with_scores:
+                logger.warning("No relevant documents found - returning empty response")
                 return (
                     "I couldn't find any relevant information in the uploaded documents to answer your question.",
                     [],
@@ -153,12 +157,16 @@ class RAGPipeline:
             query_embedding = self.embedding_service.embed_query(question)
             
             # Retrieve relevant documents
+            logger.info(f"Searching for documents with k={max_results}")
             relevant_docs_with_scores = self.vector_store.similarity_search_with_relevance_scores(
                 query_embedding,
                 k=max_results
             )
             
+            logger.info(f"Retrieved {len(relevant_docs_with_scores)} documents with scores")
+            
             if not relevant_docs_with_scores:
+                logger.warning("No relevant documents found - returning empty response")
                 def empty_response():
                     yield "I couldn't find any relevant information in the uploaded documents to answer your question."
                 
@@ -239,8 +247,14 @@ class RAGPipeline:
             # Check vector store
             validation["vector_store"] = self.vector_store is not None
             
-            # Overall validation
-            validation["overall"] = all(validation.values())
+            # Overall validation - exclude the "overall" key itself
+            component_validation = [
+                validation["document_processor"],
+                validation["embedding_service"],
+                validation["llm_service"],
+                validation["vector_store"]
+            ]
+            validation["overall"] = all(component_validation)
             
         except Exception as e:
             logger.error(f"Configuration validation failed: {e}")

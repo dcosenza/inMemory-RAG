@@ -90,10 +90,15 @@ class FAISSVectorStore:
             
             # Filter results by similarity threshold and return documents with scores
             results = []
-            for score, idx in zip(scores[0], indices[0]):
+            logger.info(f"Raw search returned {len(scores[0])} results")
+            for i, (score, idx) in enumerate(zip(scores[0], indices[0])):
+                logger.info(f"Result {i}: score={score:.3f}, idx={idx}")
                 if idx != -1 and score >= score_threshold:  # -1 indicates no match found
                     document = self.documents[idx]
                     results.append((document, float(score)))
+                    logger.info(f"Added document {idx} with score {score:.3f}")
+                elif idx != -1:
+                    logger.info(f"Filtered out document {idx} with score {score:.3f} (below threshold {score_threshold})")
             
             logger.info(f"Found {len(results)} relevant documents (threshold: {score_threshold})")
             return results

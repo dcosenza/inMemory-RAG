@@ -26,16 +26,16 @@ class EmbeddingConfig:
 @dataclass
 class VectorStoreConfig:
     """Configuration for vector store."""
-    similarity_threshold: float = 0.7
-    max_results: int = 5
+    similarity_threshold: float = 0.1
+    max_results: int = 10
     metric_type: str = "METRIC_INNER_PRODUCT"
 
 
 @dataclass
 class DocumentConfig:
     """Configuration for document processing."""
-    chunk_size: int = 1000
-    chunk_overlap: int = 200
+    chunk_size: int = 1500
+    chunk_overlap: int = 300
     max_file_size_mb: int = 10
     supported_formats: tuple = ("pdf",)
 
