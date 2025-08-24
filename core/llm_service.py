@@ -29,17 +29,19 @@ class LLMService:
     
     def _initialize_client(self) -> None:
         """Initialize OpenRouter client."""
-        if not OPENROUTER_API_KEY:
-            raise ConfigurationError(
-                "OPENROUTER_API_KEY environment variable is required"
-            )
-        
         try:
+            # Get API key using the config function (handles Streamlit secrets + env vars)
+            from config.settings import get_openrouter_api_key
+            api_key = get_openrouter_api_key()
+            
             self.client = OpenAI(
-                api_key=OPENROUTER_API_KEY,
+                api_key=api_key,
                 base_url=OPENROUTER_BASE_URL
             )
             logger.info("Initialized OpenRouter client")
+        except ValueError as e:
+            # Re-raise configuration errors with clear message
+            raise ConfigurationError(str(e))
         except Exception as e:
             raise LLMError(f"Failed to initialize OpenRouter client: {e}")
     

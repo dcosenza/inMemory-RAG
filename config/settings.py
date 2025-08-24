@@ -49,8 +49,30 @@ class AppConfig:
     max_memory_mb: int = 500
 
 
-# Environment variables
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+def get_openrouter_api_key() -> str:
+    """Get OpenRouter API key from Streamlit secrets or environment variables."""
+    try:
+        # Try Streamlit secrets first (for Streamlit Cloud deployment)
+        import streamlit as st
+        if hasattr(st, 'secrets') and 'OPENROUTER_API_KEY' in st.secrets:
+            return st.secrets["OPENROUTER_API_KEY"]
+    except (ImportError, AttributeError, KeyError):
+        pass
+    
+    # Fallback to environment variable (for local development)
+    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    
+    if not api_key:
+        raise ValueError(
+            "OpenRouter API key not found. Please set it in:\n"
+            "1. Streamlit secrets (for cloud deployment): Add OPENROUTER_API_KEY to your app secrets\n"
+            "2. Environment variable (for local development): Set OPENROUTER_API_KEY in .env file"
+        )
+    
+    return api_key
+
+# API Configuration
+OPENROUTER_API_KEY = get_openrouter_api_key()
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # Model options for OpenRouter free tier
