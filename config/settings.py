@@ -51,28 +51,42 @@ class AppConfig:
 
 def get_openrouter_api_key() -> str:
     """Get OpenRouter API key from Streamlit secrets or environment variables."""
+    api_key = ""
+    
+    # Try Streamlit secrets first (for Streamlit Cloud deployment)
     try:
-        # Try Streamlit secrets first (for Streamlit Cloud deployment)
         import streamlit as st
         if hasattr(st, 'secrets') and 'OPENROUTER_API_KEY' in st.secrets:
-            return st.secrets["OPENROUTER_API_KEY"]
-    except (ImportError, AttributeError, KeyError):
+            api_key = st.secrets["OPENROUTER_API_KEY"]
+            if api_key:
+                return api_key
+    except (ImportError, AttributeError, KeyError, FileNotFoundError):
+        # Streamlit not available or secrets not configured
         pass
     
     # Fallback to environment variable (for local development)
-    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    try:
+        api_key = os.getenv("OPENROUTER_API_KEY", "")
+        if api_key:
+            return api_key
+    except Exception:
+        pass
     
-    if not api_key:
-        raise ValueError(
-            "OpenRouter API key not found. Please set it in:\n"
-            "1. Streamlit secrets (for cloud deployment): Add OPENROUTER_API_KEY to your app secrets\n"
-            "2. Environment variable (for local development): Set OPENROUTER_API_KEY in .env file"
-        )
-    
-    return api_key
+    # If we get here, no API key was found
+    raise ValueError(
+        "OpenRouter API key not found. Please set it in:\n"
+        "1. Streamlit Cloud: Go to Settings → Secrets → Add 'OPENROUTER_API_KEY = \"your_key\"'\n"
+        "2. Local: Create .streamlit/secrets.toml with 'OPENROUTER_API_KEY = \"your_key\"'\n"
+        "3. Environment: Set OPENROUTER_API_KEY environment variable"
+    )
 
-# API Configuration
-OPENROUTER_API_KEY = get_openrouter_api_key()
+# API Configuration - Handle gracefully if not available at import time
+try:
+    OPENROUTER_API_KEY = get_openrouter_api_key()
+except ValueError:
+    # Don't fail at import time, let the app handle this gracefully
+    OPENROUTER_API_KEY = ""
+
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # Model options for OpenRouter free tier

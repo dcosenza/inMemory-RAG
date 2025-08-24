@@ -124,12 +124,31 @@ def handle_chat_query(user_input: str, selected_model: str) -> None:
 def check_configuration() -> bool:
     """Check if the application is properly configured."""
     try:
-        # Check if OpenRouter API key is set
-        import os
-        if not os.getenv("OPENROUTER_API_KEY"):
-            UIComponents.show_error(
-                "OpenRouter API key is not configured. Please set the OPENROUTER_API_KEY environment variable."
-            )
+        # Check if OpenRouter API key is configured
+        from config.settings import get_openrouter_api_key
+        
+        try:
+            api_key = get_openrouter_api_key()
+            if not api_key:
+                raise ValueError("API key is empty")
+        except ValueError as e:
+            UIComponents.show_error(f"Configuration Error: {str(e)}")
+            
+            # Show helpful setup instructions
+            st.markdown("""
+            ### 🔧 Setup Instructions:
+            
+            **For Streamlit Cloud:**
+            1. Go to your app settings
+            2. Click "Secrets" in the sidebar
+            3. Add: `OPENROUTER_API_KEY = "your_actual_key_here"`
+            
+            **For Local Development:**
+            1. Create `.streamlit/secrets.toml`
+            2. Add: `OPENROUTER_API_KEY = "your_actual_key_here"`
+            
+            Get your free API key at: https://openrouter.ai/
+            """)
             return False
         
         # Try to initialize RAG pipeline
@@ -138,15 +157,16 @@ def check_configuration() -> bool:
             validation = rag_pipeline.validate_configuration()
             
             if not validation["overall"]:
+                failed_components = [k for k, v in validation.items() if not v and k != "overall"]
                 UIComponents.show_error(
-                    f"Configuration validation failed: {validation}"
+                    f"Component validation failed: {', '.join(failed_components)}"
                 )
                 return False
             
             return True
             
-        except ConfigurationError as e:
-            UIComponents.show_error(f"Configuration error: {str(e)}")
+        except Exception as e:
+            UIComponents.show_error(f"Pipeline initialization failed: {str(e)}")
             return False
     
     except Exception as e:
