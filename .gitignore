@@ -32,6 +32,8 @@ env.bak/
 venv.bak/
 
 # Streamlit
+secrets.toml
+*settings.py
 *.secrets
 *.config
 .streamlit/secrets.toml
