@@ -32,6 +32,8 @@ env.bak/
 venv.bak/
 
 # Streamlit
+*.secrets
+*.config
 .streamlit/secrets.toml
 .streamlit/config.toml
 
