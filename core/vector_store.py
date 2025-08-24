@@ -52,6 +52,10 @@ class FAISSVectorStore:
             if embeddings_array.ndim == 1:
                 embeddings_array = embeddings_array.reshape(1, -1)
             
+            # Ensure embeddings are properly normalized for FAISS
+            import faiss
+            faiss.normalize_L2(embeddings_array)
+            
             # Add to FAISS index
             self.index.add(embeddings_array)
             
@@ -82,8 +86,12 @@ class FAISSVectorStore:
             return []
         
         try:
-            # Ensure query embedding is properly shaped
+            # Ensure query embedding is properly shaped and normalized
             query_array = np.array(query_embedding, dtype=np.float32).reshape(1, -1)
+            
+            # Normalize query for FAISS
+            import faiss
+            faiss.normalize_L2(query_array)
             
             # Perform search
             scores, indices = self.index.search(query_array, min(k, self.index.ntotal))

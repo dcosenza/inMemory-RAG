@@ -2,10 +2,14 @@
 
 from typing import List, Optional
 import logging
+import os
 
 import streamlit as st
 from sentence_transformers import SentenceTransformer
 import numpy as np
+
+# Set environment variable to avoid OpenMP conflicts
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 from config.settings import EMBEDDING_CONFIG
 from core.exceptions import EmbeddingError
@@ -58,7 +62,7 @@ class EmbeddingService:
                 batch_size=self.config.batch_size,
                 show_progress_bar=len(valid_texts) > 50,
                 convert_to_numpy=True,
-                normalize_embeddings=True  # Normalize for cosine similarity
+                normalize_embeddings=False  # We'll normalize in vector store for FAISS
             )
             
             logger.info(f"Generated embeddings for {len(valid_texts)} documents")
@@ -76,7 +80,7 @@ class EmbeddingService:
             embedding = self.model.encode(
                 [query.strip()],
                 convert_to_numpy=True,
-                normalize_embeddings=True
+                normalize_embeddings=False
             )
             
             return embedding[0]  # Return single embedding vector
