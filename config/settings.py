@@ -9,7 +9,7 @@ from dataclasses import dataclass
 class ModelConfig:
     """Configuration for language models."""
     provider: str = "openrouter"
-    model_name: str = "mistralai/mistral-7b-instruct:free"
+    model_name: str = "openai/gpt-oss-20b:free"
     temperature: float = 0.7
     max_tokens: int = 1000
     streaming: bool = True
@@ -50,24 +50,23 @@ class AppConfig:
 
 
 def get_openrouter_api_key() -> str:
-    """Get OpenRouter API key from Streamlit secrets or environment variables."""
+    """Get OpenRouter API key from .env file or environment variables."""
     api_key = ""
     
-    # Try Streamlit secrets first (for Streamlit Cloud deployment)
+    # Try .env file first (for local development)
     try:
-        import streamlit as st
-        if hasattr(st, 'secrets') and 'OPENROUTER_API_KEY' in st.secrets:
-            api_key = st.secrets["OPENROUTER_API_KEY"]
-            if api_key:
-                return api_key
-    except (ImportError, AttributeError, KeyError, FileNotFoundError):
-        # Streamlit not available or secrets not configured
+        from dotenv import load_dotenv
+        load_dotenv()
+        api_key = os.getenv("OPENROUTER_API_KEY", "")
+        if api_key and api_key != "your_api_key_here":
+            return api_key
+    except Exception:
         pass
     
-    # Fallback to environment variable (for local development)
+    # Fallback to environment variable
     try:
         api_key = os.getenv("OPENROUTER_API_KEY", "")
-        if api_key:
+        if api_key and api_key != "your_api_key_here":
             return api_key
     except Exception:
         pass
@@ -75,9 +74,9 @@ def get_openrouter_api_key() -> str:
     # If we get here, no API key was found
     raise ValueError(
         "OpenRouter API key not found. Please set it in:\n"
-        "1. Streamlit Cloud: Go to Settings → Secrets → Add 'OPENROUTER_API_KEY = \"your_key\"'\n"
-        "2. Local: Create .streamlit/secrets.toml with 'OPENROUTER_API_KEY = \"your_key\"'\n"
-        "3. Environment: Set OPENROUTER_API_KEY environment variable"
+        "1. Local: Create .env file with 'OPENROUTER_API_KEY=your_actual_key'\n"
+        "2. Environment: Set OPENROUTER_API_KEY environment variable\n"
+        "Get your free API key at: https://openrouter.ai/"
     )
 
 # API Configuration - Handle gracefully if not available at import time
@@ -92,7 +91,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 # Model options for OpenRouter free tier
 FREE_MODELS = {
     "Mistral 7B Instruct": "mistralai/mistral-7b-instruct:free",
-    "Meta Llama 3.1 8B": "meta-llama/llama-3.1-8b-instruct:free",
+    "Meta Llama 3.1 8B": "openai/gpt-oss-20b:free",
     "Mixtral 8x7B": "mistralai/mixtral-8x7b-instruct:free",
 }
 

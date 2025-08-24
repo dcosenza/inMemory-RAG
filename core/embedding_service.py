@@ -8,8 +8,9 @@ import streamlit as st
 from sentence_transformers import SentenceTransformer
 import numpy as np
 
-# Set environment variable to avoid OpenMP conflicts
+# Set environment variables to avoid conflicts
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
 from config.settings import EMBEDDING_CONFIG
 from core.exceptions import EmbeddingError

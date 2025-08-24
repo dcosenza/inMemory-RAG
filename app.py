@@ -138,14 +138,14 @@ def check_configuration() -> bool:
             st.markdown("""
             ### 🔧 Setup Instructions:
             
-            **For Streamlit Cloud:**
-            1. Go to your app settings
-            2. Click "Secrets" in the sidebar
-            3. Add: `OPENROUTER_API_KEY = "your_actual_key_here"`
-            
             **For Local Development:**
-            1. Create `.streamlit/secrets.toml`
-            2. Add: `OPENROUTER_API_KEY = "your_actual_key_here"`
+            1. Create `.env` file in the project root
+            2. Add: `OPENROUTER_API_KEY=your_actual_key_here`
+            3. Restart the application
+            
+            **For Environment Variable:**
+            1. Set: `export OPENROUTER_API_KEY=your_actual_key_here`
+            2. Restart the application
             
             Get your free API key at: https://openrouter.ai/
             """)

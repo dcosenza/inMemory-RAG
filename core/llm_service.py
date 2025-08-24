@@ -112,7 +112,16 @@ class LLMService:
             return response.choices[0].message.content
             
         except Exception as e:
-            raise LLMError(f"Failed to generate complete response: {e}")
+            error_msg = str(e)
+            if "401" in error_msg or "Unauthorized" in error_msg:
+                raise LLMError(
+                    "OpenRouter API authentication failed. Please check your API key:\n"
+                    "1. Go to https://openrouter.ai/ and get a valid API key\n"
+                    "2. Update your .streamlit/secrets.toml file\n"
+                    "3. Restart the application"
+                )
+            else:
+                raise LLMError(f"Failed to generate complete response: {e}")
     
     def _generate_streaming_response(self, messages: list, model_name: str) -> Iterator[str]:
         """Generate streaming response."""
@@ -130,7 +139,16 @@ class LLMService:
                     yield chunk.choices[0].delta.content
                     
         except Exception as e:
-            raise LLMError(f"Failed to generate streaming response: {e}")
+            error_msg = str(e)
+            if "401" in error_msg or "Unauthorized" in error_msg:
+                raise LLMError(
+                    "OpenRouter API authentication failed. Please check your API key:\n"
+                    "1. Go to https://openrouter.ai/ and get a valid API key\n"
+                    "2. Update your .streamlit/secrets.toml file\n"
+                    "3. Restart the application"
+                )
+            else:
+                raise LLMError(f"Failed to generate streaming response: {e}")
     
     def generate_streaming_response(
         self,
