@@ -190,6 +190,9 @@ def main():
         if not check_configuration():
             st.stop()
         
+        # Render session warnings (expiry notifications)
+        UIComponents.render_session_warnings()
+        
         # Render sidebar and get user inputs
         files_data, model_id = UIComponents.render_sidebar()
         
@@ -233,6 +236,7 @@ def main():
             - Ask specific questions for better results
             - Try different AI models for varied responses
             - Use the sources to verify information
+            - Your session will expire after 10 minutes of inactivity
             """)
             
             if SessionManager.is_documents_processed():

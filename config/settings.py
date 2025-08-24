@@ -77,6 +77,8 @@ class AppConfig:
     page_icon: str = "🤖"
     layout: str = "wide"
     max_memory_mb: int = 500
+    session_ttl_minutes: int = 10  # Session timeout in minutes
+    session_warning_minutes: int = 2  # Warning before session expires
 
 
 # Available models configuration

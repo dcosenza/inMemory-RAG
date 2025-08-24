@@ -114,31 +114,6 @@ class UIComponents:
             current_model_id = SessionManager.get_current_model_id()
             model_info = get_model_info(current_model_id)
             
-            if model_info:
-                st.markdown("**Current Model Info:**")
-                
-                # Model capabilities
-                capabilities = model_info.get("capabilities", [])
-                if capabilities:
-                    st.markdown(f"**Capabilities:** {', '.join(capabilities)}")
-                
-                # Model description
-                description = model_info.get("description", "")
-                if description:
-                    st.markdown(f"**Description:** {description}")
-                
-                # Model stats
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("Max Tokens", model_info.get("max_tokens", "Unknown"))
-                with col2:
-                    st.metric("Context Length", f"{model_info.get('context_length', 0):,}")
-                
-                # Free/Paid indicator
-                is_free = model_info.get("is_free", True)
-                status = "🆓 Free" if is_free else "💰 Paid"
-                st.markdown(f"**Status:** {status}")
-            
         except Exception as e:
             st.error(f"❌ Error loading model selection: {str(e)}")
             logger.error(f"Model selection error: {e}")
@@ -153,6 +128,22 @@ class UIComponents:
             st.write(f"**Documents Loaded:** {'✅' if session_info['documents_processed'] else '❌'}")
             st.write(f"**Chat Messages:** {session_info['chat_history_length']}")
             st.write(f"**Current Model:** {session_info['current_model_display_name']}")
+            
+            # TTL information
+            if session_info.get('initialized', False):
+                ttl_info = UIComponents._format_ttl_info(session_info)
+                st.markdown("---")
+                st.markdown("**⏰ Session Timer:**")
+                st.markdown(ttl_info)
+                
+                # Show warning if expiring soon
+                if session_info.get('expiring_soon', False):
+                    time_remaining = session_info.get('time_remaining_minutes', 0)
+                    st.warning(f"⚠️ Session expires in {time_remaining:.0f} minutes")
+                
+                # Show error if expired
+                if session_info.get('expired', False):
+                    st.error("❌ Session has expired! Please refresh the page.")
             
             # Processing stats
             if session_info.get('processing_stats'):
@@ -171,6 +162,79 @@ class UIComponents:
         except Exception as e:
             st.write("⚠️ Could not load session info")
             logger.warning(f"Failed to render session info: {e}")
+    
+    @staticmethod
+    def _format_ttl_info(session_info: Dict[str, Any]) -> str:
+        """Format TTL information for display."""
+        session_age = session_info.get('session_age_minutes', 0)
+        inactivity = session_info.get('inactivity_minutes', 0)
+        time_remaining = session_info.get('time_remaining_minutes', 0)
+        ttl_minutes = session_info.get('ttl_minutes', 60)
+        
+        # Format time strings
+        session_age_str = f"{session_age:.0f}m"
+        inactivity_str = f"{inactivity:.0f}m"
+        time_remaining_str = f"{time_remaining:.0f}m"
+        
+        # Color coding based on status
+        if session_info.get('expired', False):
+            time_remaining_str = f"❌ {time_remaining_str}"
+        elif session_info.get('expiring_soon', False):
+            time_remaining_str = f"⚠️ {time_remaining_str}"
+        else:
+            time_remaining_str = f"✅ {time_remaining_str}"
+        
+        return f"""
+        **Session Age:** {session_age_str}  
+        **Inactivity:** {inactivity_str}  
+        **Time Remaining:** {time_remaining_str}  
+        **TTL:** {ttl_minutes}m
+        """
+    
+    @staticmethod
+    def render_session_warnings() -> None:
+        """Render session expiry warnings in the main area."""
+        try:
+            session_info = SessionManager.get_session_info()
+            
+            if not session_info.get('initialized', False):
+                return
+            
+            # Show expiry warning
+            if session_info.get('expired', False):
+                st.error("""
+                ⏰ **Session Expired**
+                
+                Your session has expired due to inactivity. Please refresh the page to start a new session.
+                """)
+                
+                if st.button("🔄 Refresh Session", use_container_width=True):
+                    SessionManager.force_session_expiry()
+                    st.rerun()
+            
+            # Show expiring soon warning
+            elif session_info.get('expiring_soon', False):
+                time_remaining = session_info.get('time_remaining_minutes', 0)
+                st.warning(f"""
+                ⏰ **Session Expiring Soon**
+                
+                Your session will expire in {time_remaining:.0f} minutes due to inactivity. 
+                Any activity will extend your session.
+                """)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("⏰ Extend Session", use_container_width=True):
+                        SessionManager._update_last_activity()
+                        st.success("✅ Session extended!")
+                        st.rerun()
+                
+                with col2:
+                    if st.button("🔄 Refresh Now", use_container_width=True):
+                        st.rerun()
+        
+        except Exception as e:
+            logger.warning(f"Failed to render session warnings: {e}")
     
     @staticmethod
     def render_document_processing_status(files_data: List[Tuple[bytes, str]], processing_stats: Dict[str, Any]) -> None:
