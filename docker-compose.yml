@@ -13,13 +13,6 @@ services:
       - STREAMLIT_SERVER_HEADLESS=true
       - STREAMLIT_SERVER_ENABLE_CORS=false
       - STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=false
-    volumes:
-      # Mount for development (optional)
-      - ./app.py:/app/app.py:ro
-      - ./core:/app/core:ro
-      - ./ui:/app/ui:ro
-      - ./utils:/app/utils:ro
-      - ./config:/app/config:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
