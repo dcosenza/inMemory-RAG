@@ -1,248 +1,151 @@
-# RAG Document Chat 🤖📄
+# RAG Document Chat
 
-A modern, privacy-focused RAG (Retrieval-Augmented Generation) chatbot that allows users to upload PDF documents and have intelligent conversations with their content. Built with Streamlit and deployed on Streamlit Cloud.
+A **hybrid document analysis tool** that processes your PDF documents locally and uses AI to answer questions about them. Upload your documents, ask questions in natural language, and get intelligent answers backed by your actual content - with local document processing and cloud-based AI responses.
 
-## ✨ Features
+## Why would you use it
 
-- **Private Document Processing**: Documents are processed in-memory and automatically deleted when sessions end
-- **Multiple AI Models**: Choose from various free models via OpenRouter (Mistral, Llama, Mixtral)
-- **Real-time Streaming**: Streaming responses for immediate feedback
-- **Source Attribution**: See which parts of your documents generated each answer
-- **Multi-document Support**: Upload and query multiple PDFs simultaneously
-- **Modern UI**: Clean, responsive interface with chat history
-- **Session Isolation**: Complete user privacy with isolated sessions
+### **Enhanced Privacy**
+- **Your documents are processed locally** - text extraction, chunking, and embeddings happen on your machine
+- **No persistent storage** - documents are deleted when you close the app
+- **Minimal data exposure** - only relevant document chunks are sent to AI services
 
-## 🏗️ Architecture
+### **Intelligent Analysis**
+- **Ask anything** about your documents in plain English
+- **Get precise answers** with source references
+- **Real-time responses** with streaming for immediate feedback
+- **Multi-document support** - analyze multiple PDFs at once
 
-The application follows a modular, enterprise-grade architecture:
+### **Key Features**
+
+| Feature | What It Does | Why It Matters |
+|---------|-------------|----------------|
+| **Local Document Processing** | PDFs processed entirely on your machine | Your documents never leave your control during processing |
+| **Source Attribution** | Shows exactly which parts of documents were used | Verify answers and dive deeper into specific sections |
+| **Multiple AI Models** | Choose from various free models | Find the best AI personality for your needs |
+| **Session Isolation** | Each session is completely separate | Perfect for sharing with others without data mixing |
+| **Streaming Responses** | See answers appear in real-time | More engaging experience, no waiting for complete responses |
+| **Smart Chunking** | Breaks documents into optimal pieces | Better context understanding and more accurate answers |
+
+## Technology & Architecture
+
+### **Core Stack**
+
+| Technology | What It Does |
+|------------|-------------|
+| **Streamlit** | Web interface framework |
+| **LangChain** | RAG pipeline orchestration |
+| **FAISS** | Vector similarity search |
+| **Sentence Transformers** | Text embeddings |
+| **OpenRouter** | AI model access |
+| **PyPDF2 + pdfplumber** | PDF text extraction |
+
+### **Why These Choices Matter**
+
+- **LangChain**: Provides the proven RAG architecture that powers enterprise applications
+- **FAISS**: Enables lightning-fast similarity search even with thousands of document chunks
+- **Local Embeddings**: No API costs, no data sent to external services, instant processing
+- **OpenRouter**: Access to multiple AI models without vendor lock-in
+- **Dual PDF Processing**: Ensures we can extract text from even the most complex PDFs
+
+## How It Works
 
 ```
-📁 rag-document-chat/
-├── 📁 config/
-│   └── settings.py          # Configuration management
-├── 📁 core/
-│   ├── document_processor.py   # PDF processing & chunking
-│   ├── embedding_service.py    # Text embeddings (HuggingFace)
-│   ├── vector_store.py         # FAISS vector storage
-│   ├── llm_service.py          # OpenRouter LLM integration
-│   ├── rag_pipeline.py         # Main RAG orchestration
-│   └── exceptions.py           # Custom exceptions
-├── 📁 utils/
-│   └── session_manager.py      # Streamlit session management
-├── 📁 ui/
-│   └── components.py           # Reusable UI components
-├── app.py                      # Main Streamlit application
-├── requirements.txt            # Python dependencies
-└── README.md                   # This file
+Document Upload
+    ↓
+PDF Processing & Validation (LOCAL)
+    ↓
+Text Extraction (LOCAL - pdfplumber → PyPDF2 fallback)
+    ↓
+Smart Chunking (LOCAL - 1500 chars with 300 overlap)
+    ↓
+Local Embedding Generation (LOCAL - sentence-transformers)
+    ↓
+FAISS Vector Storage (LOCAL - in-memory)
+    ↓
+User Query
+    ↓
+Query Embedding + Similarity Search (LOCAL)
+    ↓
+Top-K Relevant Chunks Retrieved (LOCAL)
+    ↓
+AI Response Generation (CLOUD - OpenRouter API)
+    ↓
+Source Attribution + Streaming Display
+    ↓
+Automatic Cleanup (LOCAL - session end)
 ```
 
-### Key Components
+### **Data Flow Explanation**
 
-- **Document Processor**: Handles PDF text extraction using PyPDF2 and pdfplumber with fallback mechanisms
-- **Embedding Service**: Uses sentence-transformers for local, free embeddings
-- **Vector Store**: FAISS-based similarity search with configurable thresholds
-- **LLM Service**: OpenRouter integration with streaming support
-- **RAG Pipeline**: Orchestrates the entire retrieval-augmented generation process
-- **Session Manager**: Ensures complete user isolation and privacy
+1. **Local Document Processing**: PDFs are validated, extracted, and chunked into digestible pieces on your machine
+2. **Local Vector Creation**: Each chunk gets converted to a numerical vector (embedding) locally
+3. **Local Storage**: Vectors are stored in FAISS for ultra-fast similarity search on your machine
+4. **Local Query Processing**: Your question gets converted to a vector and compared to all chunks locally
+5. **Local Retrieval**: Most relevant document chunks are found locally
+6. **Cloud Response**: Relevant chunks and your question are sent to OpenRouter for AI response generation
+7. **Display**: Answer streams back with source references
+8. **Local Cleanup**: Everything is automatically deleted from your machine when you're done
 
-## 🚀 Quick Start
+## Quick Start (Docker)
 
 ### Prerequisites
+- **Docker** installed on your machine
+- **OpenRouter API key** (free at https://openrouter.ai/)
 
-- Python 3.8+
-- OpenRouter API key (free tier available)
-
-### Installation
+### Step-by-Step Setup
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/rag-document-chat.git
-   cd rag-document-chat
+   git clone https://github.com/yourusername/inMemory-RAG.git
+   cd inMemory-RAG
    ```
 
-2. **Install dependencies**
+2. **Get your API key**
+   - Go to https://openrouter.ai/
+   - Sign up for free account
+   - Copy your API key
+
+3. **Set your API key**
    ```bash
-   pip install -r requirements.txt
+   export OPENROUTER_API_KEY="your_actual_api_key_here"
    ```
 
-3. **Set up environment variables**
+4. **Run with Docker**
    ```bash
-   cp .env.example .env
-   # Edit .env and add your OpenRouter API key
+   # Build and start the application
+   docker-compose up --build
    ```
 
-4. **Run the application**
-   ```bash
-   streamlit run app.py
-   ```
+5. **Access the app**
+   - Open your browser
+   - Go to: **http://localhost:8501**
+   - Start uploading PDFs and chatting!
 
-### Streamlit Cloud Deployment
+## Privacy & Security
 
-1. Fork this repository
-2. Connect your GitHub account to Streamlit Cloud
-3. Create a new app and select this repository
-4. Add your `OPENROUTER_API_KEY` in the Streamlit Cloud secrets management
-5. Deploy!
+### **What Stays Local**
+- **Document Processing**: PDF text extraction, chunking, and embedding generation
+- **Vector Storage**: All document embeddings stored in local memory
+- **Similarity Search**: Finding relevant document chunks happens locally
+- **Session Data**: Chat history and processing stats stored locally
 
-## 🔧 Configuration
+### **What Goes to Cloud**
+- **User Questions**: Your queries are sent to OpenRouter API
+- **Relevant Document Chunks**: Only the most relevant pieces of your documents are sent with each question
+- **AI Responses**: Generated by OpenRouter and streamed back to you
 
-### Environment Variables
+### **Privacy Benefits**
+- **No Full Document Upload**: Only small, relevant chunks are sent to AI services
+- **No Persistent Storage**: Documents are deleted when you close the app
+- **Session Isolation**: Each session is completely separate
+- **Local Processing**: Most of the heavy lifting happens on your machine
+- **Minimal Data Exposure**: Only the specific content needed to answer your question is shared
 
-- `OPENROUTER_API_KEY`: Your OpenRouter API key (required)
-- `LOG_LEVEL`: Logging level (optional, default: INFO)
+### **Privacy Considerations**
+- **OpenRouter Access**: OpenRouter can see your questions and the document chunks you're asking about
+- **API Logs**: Standard API logging may apply to OpenRouter services
+- **Network Transmission**: Data is transmitted over HTTPS to OpenRouter
 
-### Model Configuration
+This approach provides a balance between privacy (local document processing) and functionality (powerful AI responses), while being transparent about what data is shared with external services.
 
-The application supports multiple free models through OpenRouter:
 
-- **Mistral 7B Instruct**: Fast, efficient model
-- **Meta Llama 3.1 8B**: Balanced performance
-- **Mixtral 8x7B**: High-quality responses
-
-### Customization
-
-Key settings can be modified in `config/settings.py`:
-
-```python
-# Document processing
-chunk_size = 1000
-chunk_overlap = 200
-max_file_size_mb = 10
-
-# Vector search
-similarity_threshold = 0.7
-max_results = 5
-
-# Model settings
-temperature = 0.7
-max_tokens = 1000
-```
-
-## 🔒 Privacy & Security
-
-- **Ephemeral Storage**: All documents and embeddings exist only in memory
-- **Session Isolation**: Each user session is completely isolated
-- **No Persistence**: No data is saved to disk or databases
-- **Automatic Cleanup**: All data is automatically deleted when sessions end
-- **Local Processing**: Embeddings are generated locally, not sent to external services
-
-## 📋 Usage
-
-1. **Upload Documents**: Use the sidebar to upload one or more PDF files
-2. **Wait for Processing**: Documents are automatically processed and chunked
-3. **Start Chatting**: Ask questions about your documents in natural language
-4. **View Sources**: Expand source sections to see which documents informed each answer
-5. **Switch Models**: Try different AI models for varied response styles
-
-### Example Queries
-
-- "What are the main topics discussed in these documents?"
-- "Can you summarize the key findings?"
-- "What recommendations are mentioned?"
-- "Are there any specific statistics or numbers mentioned?"
-
-## 🛠️ Development
-
-### Project Structure
-
-- **Separation of Concerns**: Clear separation between UI, business logic, and data layers
-- **Dependency Injection**: Configurable components for easy testing
-- **Error Handling**: Comprehensive exception handling with user-friendly messages
-- **Logging**: Structured logging for debugging and monitoring
-- **Type Hints**: Full type annotations for better code reliability
-
-### Adding New Features
-
-1. **New Document Types**: Extend `DocumentProcessor` class
-2. **New Embedding Models**: Modify `EmbeddingService` configuration
-3. **New LLM Providers**: Extend `LLMService` class
-4. **UI Enhancements**: Add components to `ui/components.py`
-
-### Testing
-
-```bash
-# Install development dependencies
-pip install pytest pytest-cov
-
-# Run tests
-pytest tests/ -v
-
-# Run with coverage
-pytest tests/ --cov=core --cov-report=html
-```
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-1. **API Key Errors**: Ensure `OPENROUTER_API_KEY` is set correctly
-2. **PDF Processing Fails**: Some PDFs may be image-based or corrupted
-3. **Memory Issues**: Large documents may exceed memory limits
-4. **Model Errors**: Check OpenRouter status and model availability
-
-### Debugging
-
-Enable debug logging:
-```bash
-export LOG_LEVEL=DEBUG
-streamlit run app.py
-```
-
-### Performance Optimization
-
-- **Reduce chunk size** for large documents
-- **Lower similarity threshold** for more results
-- **Use smaller embedding models** for faster processing
-
-## 📚 Technical Details
-
-### RAG Pipeline Flow
-
-1. **Document Upload** → PDF validation and size checking
-2. **Text Extraction** → Multi-method extraction (pdfplumber → PyPDF2 fallback)
-3. **Text Chunking** → Recursive character splitting with overlap
-4. **Embedding Generation** → Local sentence-transformer embeddings
-5. **Vector Storage** → FAISS index creation and storage
-6. **Query Processing** → Query embedding and similarity search
-7. **Context Retrieval** → Top-K relevant document chunks
-8. **Response Generation** → LLM response with streaming
-9. **Source Attribution** → Document source tracking and display
-
-### Memory Management
-
-- In-memory FAISS index for fast similarity search
-- Automatic cleanup on session end
-- Configurable memory limits and chunk sizes
-- Efficient streaming to minimize memory usage
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- [Streamlit](https://streamlit.io/) for the amazing web framework
-- [OpenRouter](https://openrouter.ai/) for free AI model access
-- [LangChain](https://langchain.com/) for RAG pipeline components
-- [FAISS](https://github.com/facebookresearch/faiss) for efficient similarity search
-- [HuggingFace](https://huggingface.co/) for free embedding models
-
-## 📞 Support
-
-If you encounter any issues or have questions:
-
-1. Check the [Issues](https://github.com/yourusername/rag-document-chat/issues) page
-2. Create a new issue with detailed information
-3. Join our [Discord community](https://discord.gg/yourserver) for real-time help
-
----
-
-**Built with ❤️ for the open-source community**
