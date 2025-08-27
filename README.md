@@ -10,7 +10,7 @@ A **hybrid document analysis tool** that processes your PDF documents locally an
 - **Minimal data exposure** - only relevant document chunks are sent to AI services
 
 ### **Intelligent Analysis**
-- **Ask anything** about your documents in plain English
+- **Ask anything** about your documents in plain, everyday language
 - **Get precise answers** with source references
 - **Real-time responses** with streaming for immediate feedback
 - **Multi-document support** - analyze multiple PDFs at once
