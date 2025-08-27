@@ -35,6 +35,7 @@ class RAGPipeline:
         except Exception as e:
             raise RAGChatbotError(f"Failed to initialize RAG pipeline: {e}")
     
+    # Model management methods
     def set_model(self, model_name: str) -> None:
         """Set the current model for the LLM service."""
         try:
@@ -51,28 +52,23 @@ class RAGPipeline:
         except Exception as e:
             raise RAGChatbotError(f"Failed to set model: {e}")
     
+    # Model info methods - delegate to LLM service
     def get_current_model(self) -> str:
-        """Get the current model ID."""
         return self.llm_service.get_current_model()
     
     def get_current_model_display_name(self) -> str:
-        """Get the current model display name."""
         return self.llm_service.get_current_model_display_name()
     
     def get_available_models(self, include_paid: bool = False) -> Dict[str, str]:
-        """Get available models for selection."""
         return self.llm_service.get_available_models(include_paid)
     
     def get_model_info(self, model_name: str) -> Optional[Dict[str, Any]]:
-        """Get detailed information about a model."""
         return self.llm_service.get_model_info(model_name)
     
     def get_current_model_info(self) -> Dict[str, Any]:
-        """Get information about current model configuration."""
         return self.llm_service.get_current_model_info()
     
     def validate_model(self, model_name: str) -> bool:
-        """Validate if a model is available."""
         return self.llm_service.validate_model(model_name)
     
     def process_documents(self, files_data: List[Tuple[bytes, str]]) -> Dict[str, Any]:
@@ -90,7 +86,6 @@ class RAGPipeline:
                 all_documents.extend(documents)
                 processing_stats["files_processed"] += 1
                 logger.info(f"Successfully processed {filename}")
-                
             except Exception as e:
                 processing_stats["files_failed"] += 1
                 error_msg = f"Failed to process {filename}: {str(e)}"
@@ -100,12 +95,10 @@ class RAGPipeline:
         if not all_documents:
             raise RAGChatbotError("No valid documents were processed")
         
-        # Generate embeddings
+        # Generate embeddings and add to vector store
         try:
             texts = [doc.page_content for doc in all_documents]
             embeddings = self.embedding_service.embed_documents(texts)
-            
-            # Add to vector store
             self.vector_store.add_documents(all_documents, embeddings)
             
             # Get final stats
@@ -125,6 +118,32 @@ class RAGPipeline:
         except Exception as e:
             raise RAGChatbotError(f"Failed to create embeddings and vector store: {e}")
     
+    def _validate_query(self, question: str) -> None:
+        """Validate query parameters."""
+        if not question or not question.strip():
+            raise RAGChatbotError("Question cannot be empty")
+        
+        if self.vector_store.is_empty():
+            raise RAGChatbotError("No documents have been processed. Please upload documents first.")
+    
+    def _retrieve_documents(self, question: str, max_results: Optional[int] = None) -> Tuple[List[Document], List[float]]:
+        """Retrieve relevant documents for a query."""
+        query_embedding = self.embedding_service.embed_query(question)
+        relevant_docs_with_scores = self.vector_store.similarity_search_with_relevance_scores(
+            query_embedding, k=max_results
+        )
+        
+        if not relevant_docs_with_scores:
+            logger.warning("No relevant documents found")
+            return [], []
+        
+        # Separate documents and scores
+        relevant_docs = [doc for doc, _ in relevant_docs_with_scores]
+        scores = [score for _, score in relevant_docs_with_scores]
+        
+        logger.info(f"Retrieved {len(relevant_docs)} documents")
+        return relevant_docs, scores
+    
     def query(
         self, 
         question: str, 
@@ -133,42 +152,19 @@ class RAGPipeline:
         similarity_threshold: Optional[float] = None
     ) -> Tuple[str, List[Document], List[float]]:
         """Query the RAG system and return response with source documents."""
-        if not question or not question.strip():
-            raise RAGChatbotError("Question cannot be empty")
-        
-        if self.vector_store.is_empty():
-            raise RAGChatbotError("No documents have been processed. Please upload documents first.")
+        self._validate_query(question)
         
         try:
-            # Generate query embedding
-            query_embedding = self.embedding_service.embed_query(question)
+            relevant_docs, scores = self._retrieve_documents(question, max_results)
             
-            # Retrieve relevant documents
-            logger.info(f"Searching for documents with k={max_results}")
-            relevant_docs_with_scores = self.vector_store.similarity_search_with_relevance_scores(
-                query_embedding, 
-                k=max_results
-            )
-            
-            logger.info(f"Retrieved {len(relevant_docs_with_scores)} documents with scores")
-            
-            if not relevant_docs_with_scores:
-                logger.warning("No relevant documents found - returning empty response")
+            if not relevant_docs:
                 return (
                     "I couldn't find any relevant information in the uploaded documents to answer your question.",
-                    [],
-                    []
+                    [], []
                 )
             
-            # Separate documents and scores
-            relevant_docs = [doc for doc, _ in relevant_docs_with_scores]
-            scores = [score for _, score in relevant_docs_with_scores]
-            
-            # Generate response
             response = self.llm_service.generate_response(
-                question, 
-                relevant_docs, 
-                model_name=model_name
+                question, relevant_docs, model_name=model_name
             )
             
             logger.info(f"Generated response for query: {question[:50]}...")
@@ -186,41 +182,18 @@ class RAGPipeline:
         max_results: Optional[int] = None
     ) -> Tuple[Iterator[str], List[Document], List[float]]:
         """Query with streaming response."""
-        if not question or not question.strip():
-            raise RAGChatbotError("Question cannot be empty")
-        
-        if self.vector_store.is_empty():
-            raise RAGChatbotError("No documents have been processed. Please upload documents first.")
+        self._validate_query(question)
         
         try:
-            # Generate query embedding
-            query_embedding = self.embedding_service.embed_query(question)
+            relevant_docs, scores = self._retrieve_documents(question, max_results)
             
-            # Retrieve relevant documents
-            logger.info(f"Searching for documents with k={max_results}")
-            relevant_docs_with_scores = self.vector_store.similarity_search_with_relevance_scores(
-                query_embedding,
-                k=max_results
-            )
-            
-            logger.info(f"Retrieved {len(relevant_docs_with_scores)} documents with scores")
-            
-            if not relevant_docs_with_scores:
-                logger.warning("No relevant documents found - returning empty response")
+            if not relevant_docs:
                 def empty_response():
                     yield "I couldn't find any relevant information in the uploaded documents to answer your question."
-                
                 return empty_response(), [], []
             
-            # Separate documents and scores
-            relevant_docs = [doc for doc, _ in relevant_docs_with_scores]
-            scores = [score for _, score in relevant_docs_with_scores]
-            
-            # Generate streaming response
             response_stream = self.llm_service.generate_streaming_response(
-                question,
-                relevant_docs,
-                model_name=model_name
+                question, relevant_docs, model_name=model_name
             )
             
             logger.info(f"Started streaming response for query: {question[:50]}...")
@@ -242,35 +215,15 @@ class RAGPipeline:
     
     def validate_configuration(self) -> Dict[str, bool]:
         """Validate all pipeline components."""
-        validation = {}
+        components = {
+            "document_processor": self.document_processor is not None,
+            "embedding_service": self.embedding_service is not None,
+            "llm_service": self.llm_service is not None,
+            "vector_store": self.vector_store is not None
+        }
         
-        try:
-            # Validate document processor
-            validation["document_processor"] = self.document_processor is not None
-            
-            # Validate embedding service
-            validation["embedding_service"] = self.embedding_service is not None
-            
-            # Validate LLM service
-            validation["llm_service"] = self.llm_service is not None
-            
-            # Validate vector store
-            validation["vector_store"] = self.vector_store is not None
-            
-            # Overall validation - exclude the "overall" key itself
-            component_validation = [
-                validation["document_processor"],
-                validation["embedding_service"],
-                validation["llm_service"],
-                validation["vector_store"]
-            ]
-            validation["overall"] = all(component_validation)
-            
-        except Exception as e:
-            logger.error(f"Configuration validation failed: {e}")
-            validation["overall"] = False
-        
-        return validation
+        components["overall"] = all(components.values())
+        return components
     
     def get_pipeline_stats(self) -> Dict[str, Any]:
         """Get comprehensive pipeline statistics."""
@@ -285,16 +238,14 @@ class RAGPipeline:
         # Add vector store stats if available
         if self.vector_store:
             try:
-                vector_stats = self.vector_store.get_stats()
-                stats.update(vector_stats)
+                stats.update(self.vector_store.get_stats())
             except Exception as e:
                 logger.warning(f"Could not get vector store stats: {e}")
                 stats["vector_store_stats_error"] = str(e)
         
         # Add model info
         try:
-            model_info = self.get_current_model_info()
-            stats["model_info"] = model_info
+            stats["model_info"] = self.get_current_model_info()
         except Exception as e:
             logger.warning(f"Could not get model info: {e}")
             stats["model_info_error"] = str(e)

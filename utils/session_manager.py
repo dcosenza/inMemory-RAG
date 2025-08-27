@@ -29,8 +29,8 @@ class SessionManager:
             st.session_state.chat_history = []
             st.session_state.documents_processed = False
             st.session_state.processing_stats = {}
-            st.session_state.current_model_id = default_model_id  # Dynamic default
-            st.session_state.current_model_display_name = default_display_name  # Dynamic default
+            st.session_state.current_model_id = default_model_id
+            st.session_state.current_model_display_name = default_display_name
             st.session_state.error_message = None
             st.session_state.success_message = None
             
@@ -168,6 +168,7 @@ class SessionManager:
         
         return st.session_state.rag_pipeline
     
+    # Chat history methods
     @staticmethod
     def add_chat_message(role: str, content: str, sources: Optional[List[Dict]] = None) -> None:
         """Add message to chat history."""
@@ -200,6 +201,7 @@ class SessionManager:
         st.session_state.chat_history = []
         logger.info("Chat history cleared")
     
+    # Document processing methods
     @staticmethod
     def set_documents_processed(status: bool, stats: Optional[Dict] = None) -> None:
         """Set document processing status."""
@@ -222,26 +224,32 @@ class SessionManager:
         SessionManager._update_last_activity()
         return st.session_state.get("processing_stats", {})
     
+    # Model management methods
+    @staticmethod
+    def _set_model_internal(display_name: str, model_id: str) -> None:
+        """Internal method to set model in session state."""
+        SessionManager._update_last_activity()
+        
+        # Update session state
+        st.session_state.current_model_display_name = display_name
+        st.session_state.current_model_id = model_id
+        
+        # Update RAG pipeline if available
+        if st.session_state.rag_pipeline:
+            st.session_state.rag_pipeline.set_model(model_id)
+        
+        logger.info(f"Current model set to: {display_name} ({model_id})")
+    
     @staticmethod
     def set_current_model(display_name: str) -> None:
         """Set current model by display name."""
-        SessionManager._update_last_activity()
-        
         try:
             # Get model ID from display name
             model_id = get_model_by_display_name(display_name)
             if not model_id:
                 raise ValueError(f"Model not found: {display_name}")
             
-            # Update session state
-            st.session_state.current_model_display_name = display_name
-            st.session_state.current_model_id = model_id
-            
-            # Update RAG pipeline if available
-            if st.session_state.rag_pipeline:
-                st.session_state.rag_pipeline.set_model(model_id)
-            
-            logger.info(f"Current model set to: {display_name} ({model_id})")
+            SessionManager._set_model_internal(display_name, model_id)
             
         except Exception as e:
             logger.error(f"Failed to set model: {e}")
@@ -250,8 +258,6 @@ class SessionManager:
     @staticmethod
     def set_current_model_by_id(model_id: str) -> None:
         """Set current model by model ID."""
-        SessionManager._update_last_activity()
-        
         try:
             # Get display name from model ID
             available_models = get_available_models()
@@ -264,15 +270,7 @@ class SessionManager:
             if not display_name:
                 raise ValueError(f"Model ID not found: {model_id}")
             
-            # Update session state
-            st.session_state.current_model_id = model_id
-            st.session_state.current_model_display_name = display_name
-            
-            # Update RAG pipeline if available
-            if st.session_state.rag_pipeline:
-                st.session_state.rag_pipeline.set_model(model_id)
-            
-            logger.info(f"Current model set to: {display_name} ({model_id})")
+            SessionManager._set_model_internal(display_name, model_id)
             
         except Exception as e:
             logger.error(f"Failed to set model: {e}")
@@ -312,6 +310,7 @@ class SessionManager:
         except Exception as e:
             logger.warning(f"Failed to sync model with pipeline: {e}")
     
+    # Message management methods
     @staticmethod
     def set_error_message(message: str) -> None:
         """Set error message."""

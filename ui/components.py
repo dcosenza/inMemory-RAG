@@ -49,10 +49,7 @@ class UIComponents:
             # Convert uploaded files to the format expected by the pipeline
             files_data = None
             if uploaded_files:
-                files_data = []
-                for file in uploaded_files:
-                    file_bytes = file.read()
-                    files_data.append((file_bytes, file.name))
+                files_data = [(file.read(), file.name) for file in uploaded_files]
             
             st.divider()
             
@@ -287,7 +284,7 @@ class UIComponents:
             with col1:
                 user_input = st.text_area(
                     "Ask a question about your documents:",
-                    placeholder="What is the main topic discussed in the documents?",
+                    placeholder="Ask any question about your documents",
                     height=100,
                     label_visibility="collapsed"
                 )
@@ -311,7 +308,7 @@ class UIComponents:
         chat_container = st.container()
         
         with chat_container:
-            for i, message in enumerate(chat_history):
+            for message in chat_history:
                 if message["role"] == "user":
                     with st.chat_message("user"):
                         st.write(message["content"])
@@ -375,24 +372,21 @@ class UIComponents:
         
         return full_response
     
+    # Message display methods
     @staticmethod
     def show_error(message: str) -> None:
-        """Show error message."""
         st.error(f"❌ {message}")
     
     @staticmethod
     def show_success(message: str) -> None:
-        """Show success message."""
         st.success(f"✅ {message}")
     
     @staticmethod
     def show_info(message: str) -> None:
-        """Show info message."""
         st.info(f"ℹ️ {message}")
     
     @staticmethod
     def show_warning(message: str) -> None:
-        """Show warning message."""
         st.warning(f"⚠️ {message}")
     
     @staticmethod

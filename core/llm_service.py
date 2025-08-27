@@ -65,14 +65,22 @@ class LLMService:
         
         self.set_model(model_id)
     
+    # Model info methods
     def get_current_model(self) -> str:
-        """Get the current model ID."""
         return self.config.model_name
     
     def get_current_model_display_name(self) -> str:
-        """Get the current model display name."""
         model_info = get_model_info(self.config.model_name)
         return model_info.get("display_name", self.config.model_name) if model_info else self.config.model_name
+    
+    def validate_model(self, model_name: str) -> bool:
+        return validate_model(model_name)
+    
+    def get_available_models(self, include_paid: bool = False) -> Dict[str, str]:
+        return get_available_models(include_paid)
+    
+    def get_model_info(self, model_name: str) -> Optional[Dict[str, Any]]:
+        return get_model_info(model_name)
     
     def _prepare_context(self, relevant_documents: list[Document]) -> str:
         """Prepare context from relevant documents."""
@@ -100,6 +108,30 @@ class LLMService:
             {"role": "user", "content": query}
         ]
     
+    def _get_model_config(self, model_name: str) -> Dict[str, Any]:
+        """Get model-specific configuration."""
+        model_info = get_model_info(model_name)
+        max_tokens = model_info.get("max_tokens", self.config.max_tokens) if model_info else self.config.max_tokens
+        
+        return {
+            "model": model_name,
+            "temperature": self.config.temperature,
+            "max_tokens": max_tokens
+        }
+    
+    def _handle_api_error(self, e: Exception) -> None:
+        """Handle API errors with appropriate messages."""
+        error_msg = str(e)
+        if "401" in error_msg or "Unauthorized" in error_msg:
+            raise LLMError(
+                "OpenRouter API authentication failed. Please check your API key:\n"
+                "1. Go to https://openrouter.ai/ and get a valid API key\n"
+                "2. Update your .env file\n"
+                "3. Restart the application"
+            )
+        else:
+            raise LLMError(f"API request failed: {e}")
+    
     def generate_response(
         self, 
         query: str, 
@@ -112,11 +144,9 @@ class LLMService:
             raise LLMError("LLM client not initialized")
         
         # Use provided model or current model
-        if model_name:
-            if not validate_model(model_name):
-                raise LLMError(f"Invalid model: {model_name}")
-        else:
-            model_name = self.config.model_name
+        model_name = model_name or self.config.model_name
+        if not validate_model(model_name):
+            raise LLMError(f"Invalid model: {model_name}")
         
         should_stream = stream if stream is not None else self.config.streaming
         
@@ -137,43 +167,30 @@ class LLMService:
     def _generate_complete_response(self, messages: list, model_name: str) -> str:
         """Generate complete response (non-streaming)."""
         try:
-            # Get model-specific configuration
-            model_info = get_model_info(model_name)
-            max_tokens = model_info.get("max_tokens", self.config.max_tokens) if model_info else self.config.max_tokens
+            config = self._get_model_config(model_name)
             
             response = self.client.chat.completions.create(
-                model=model_name,
+                model=config["model"],
                 messages=messages,
-                temperature=self.config.temperature,
-                max_tokens=max_tokens
+                temperature=config["temperature"],
+                max_tokens=config["max_tokens"]
             )
             
             return response.choices[0].message.content
             
         except Exception as e:
-            error_msg = str(e)
-            if "401" in error_msg or "Unauthorized" in error_msg:
-                raise LLMError(
-                    "OpenRouter API authentication failed. Please check your API key:\n"
-                    "1. Go to https://openrouter.ai/ and get a valid API key\n"
-                    "2. Update your .env file\n"
-                    "3. Restart the application"
-                )
-            else:
-                raise LLMError(f"Failed to generate complete response: {e}")
+            self._handle_api_error(e)
     
     def _generate_streaming_response(self, messages: list, model_name: str) -> Iterator[str]:
         """Generate streaming response."""
         try:
-            # Get model-specific configuration
-            model_info = get_model_info(model_name)
-            max_tokens = model_info.get("max_tokens", self.config.max_tokens) if model_info else self.config.max_tokens
+            config = self._get_model_config(model_name)
             
             stream = self.client.chat.completions.create(
-                model=model_name,
+                model=config["model"],
                 messages=messages,
-                temperature=self.config.temperature,
-                max_tokens=max_tokens,
+                temperature=config["temperature"],
+                max_tokens=config["max_tokens"],
                 stream=True
             )
             
@@ -182,16 +199,7 @@ class LLMService:
                     yield chunk.choices[0].delta.content
                     
         except Exception as e:
-            error_msg = str(e)
-            if "401" in error_msg or "Unauthorized" in error_msg:
-                raise LLMError(
-                    "OpenRouter API authentication failed. Please check your API key:\n"
-                    "1. Go to https://openrouter.ai/ and get a valid API key\n"
-                    "2. Update your .env file\n"
-                    "3. Restart the application"
-                )
-            else:
-                raise LLMError(f"Failed to generate streaming response: {e}")
+            self._handle_api_error(e)
     
     def generate_streaming_response(
         self,
@@ -204,11 +212,9 @@ class LLMService:
             raise LLMError("LLM client not initialized")
         
         # Use provided model or current model
-        if model_name:
-            if not validate_model(model_name):
-                raise LLMError(f"Invalid model: {model_name}")
-        else:
-            model_name = self.config.model_name
+        model_name = model_name or self.config.model_name
+        if not validate_model(model_name):
+            raise LLMError(f"Invalid model: {model_name}")
         
         try:
             context = self._prepare_context(relevant_documents)
@@ -220,18 +226,6 @@ class LLMService:
             if isinstance(e, LLMError):
                 raise
             raise LLMError(f"Failed to generate streaming response: {e}")
-    
-    def validate_model(self, model_name: str) -> bool:
-        """Validate if a model is available."""
-        return validate_model(model_name)
-    
-    def get_available_models(self, include_paid: bool = False) -> Dict[str, str]:
-        """Get available models for selection."""
-        return get_available_models(include_paid)
-    
-    def get_model_info(self, model_name: str) -> Optional[Dict[str, Any]]:
-        """Get detailed information about a model."""
-        return get_model_info(model_name)
     
     def get_current_model_info(self) -> Dict[str, Any]:
         """Get information about current model configuration."""

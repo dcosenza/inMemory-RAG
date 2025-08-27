@@ -1,6 +1,6 @@
 """Document processing module for PDF extraction and text chunking."""
 
-from typing import List, Optional, Tuple
+from typing import List, Optional
 import io
 import logging
 from pathlib import Path
@@ -46,7 +46,26 @@ class DocumentProcessor:
                 f"Supported formats: {', '.join(self.config.supported_formats)}"
             )
     
-    def extract_text_pypdf2(self, file_data: bytes) -> str:
+    def _extract_text_with_pdfplumber(self, file_data: bytes) -> Optional[str]:
+        """Extract text using pdfplumber (primary method)."""
+        try:
+            text_content = []
+            with pdfplumber.open(io.BytesIO(file_data)) as pdf:
+                for page_num, page in enumerate(pdf.pages):
+                    try:
+                        page_text = page.extract_text()
+                        if page_text and page_text.strip():
+                            text_content.append(f"[Page {page_num + 1}]\n{page_text}")
+                    except Exception as e:
+                        logger.warning(f"Error extracting page {page_num + 1}: {e}")
+                        continue
+            
+            return "\n\n".join(text_content) if text_content else None
+        except Exception as e:
+            logger.warning(f"pdfplumber extraction failed: {e}")
+            return None
+    
+    def _extract_text_with_pypdf2(self, file_data: bytes) -> str:
         """Extract text using PyPDF2 (fallback method)."""
         try:
             pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_data))
@@ -65,37 +84,17 @@ class DocumentProcessor:
         except Exception as e:
             raise DocumentProcessingError(f"PyPDF2 extraction failed: {e}")
     
-    def extract_text_pdfplumber(self, file_data: bytes) -> str:
-        """Extract text using pdfplumber (primary method)."""
-        try:
-            text_content = []
-            
-            with pdfplumber.open(io.BytesIO(file_data)) as pdf:
-                for page_num, page in enumerate(pdf.pages):
-                    try:
-                        page_text = page.extract_text()
-                        if page_text and page_text.strip():
-                            text_content.append(f"[Page {page_num + 1}]\n{page_text}")
-                    except Exception as e:
-                        logger.warning(f"Error extracting page {page_num + 1}: {e}")
-                        continue
-            
-            return "\n\n".join(text_content)
-        except Exception as e:
-            logger.warning(f"pdfplumber extraction failed: {e}")
-            return None
-    
     def extract_text_from_pdf(self, file_data: bytes, filename: str) -> str:
         """Extract text from PDF using multiple extraction methods."""
         self.validate_file(file_data, filename)
         
         # Try pdfplumber first (better for complex layouts)
-        extracted_text = self.extract_text_pdfplumber(file_data)
+        extracted_text = self._extract_text_with_pdfplumber(file_data)
         
         # Fallback to PyPDF2 if pdfplumber fails
         if not extracted_text or not extracted_text.strip():
             logger.info("Falling back to PyPDF2 for text extraction")
-            extracted_text = self.extract_text_pypdf2(file_data)
+            extracted_text = self._extract_text_with_pypdf2(file_data)
         
         if not extracted_text or not extracted_text.strip():
             raise DocumentProcessingError(

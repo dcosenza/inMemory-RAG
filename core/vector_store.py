@@ -35,6 +35,16 @@ class FAISSVectorStore:
         except Exception as e:
             raise VectorStoreError(f"Failed to initialize FAISS index: {e}")
     
+    def _normalize_embeddings(self, embeddings: np.ndarray) -> np.ndarray:
+        """Normalize embeddings for FAISS."""
+        embeddings_array = np.array(embeddings, dtype=np.float32)
+        if embeddings_array.ndim == 1:
+            embeddings_array = embeddings_array.reshape(1, -1)
+        
+        # Ensure embeddings are properly normalized for FAISS
+        faiss.normalize_L2(embeddings_array)
+        return embeddings_array
+    
     def add_documents(self, documents: List[Document], embeddings: np.ndarray) -> None:
         """Add documents and their embeddings to the vector store."""
         if len(documents) != len(embeddings):
@@ -47,16 +57,8 @@ class FAISSVectorStore:
             return
         
         try:
-            # Ensure embeddings are float32 and properly shaped
-            embeddings_array = np.array(embeddings, dtype=np.float32)
-            if embeddings_array.ndim == 1:
-                embeddings_array = embeddings_array.reshape(1, -1)
-            
-            # Ensure embeddings are properly normalized for FAISS
-            import faiss
-            faiss.normalize_L2(embeddings_array)
-            
-            # Add to FAISS index
+            # Normalize and add embeddings to FAISS index
+            embeddings_array = self._normalize_embeddings(embeddings)
             self.index.add(embeddings_array)
             
             # Store documents and embeddings
@@ -86,27 +88,18 @@ class FAISSVectorStore:
             return []
         
         try:
-            # Ensure query embedding is properly shaped and normalized
-            query_array = np.array(query_embedding, dtype=np.float32).reshape(1, -1)
-            
-            # Normalize query for FAISS
-            import faiss
-            faiss.normalize_L2(query_array)
+            # Normalize query embedding
+            query_array = self._normalize_embeddings(query_embedding)
             
             # Perform search
             scores, indices = self.index.search(query_array, min(k, self.index.ntotal))
             
             # Filter results by similarity threshold and return documents with scores
             results = []
-            logger.info(f"Raw search returned {len(scores[0])} results")
-            for i, (score, idx) in enumerate(zip(scores[0], indices[0])):
-                logger.info(f"Result {i}: score={score:.3f}, idx={idx}")
+            for score, idx in zip(scores[0], indices[0]):
                 if idx != -1 and score >= score_threshold:  # -1 indicates no match found
                     document = self.documents[idx]
                     results.append((document, float(score)))
-                    logger.info(f"Added document {idx} with score {score:.3f}")
-                elif idx != -1:
-                    logger.info(f"Filtered out document {idx} with score {score:.3f} (below threshold {score_threshold})")
             
             logger.info(f"Found {len(results)} relevant documents (threshold: {score_threshold})")
             return results

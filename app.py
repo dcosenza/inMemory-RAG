@@ -2,7 +2,7 @@
 
 import logging
 import sys
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import streamlit as st
 
@@ -10,9 +10,7 @@ import streamlit as st
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
+    handlers=[logging.StreamHandler(sys.stdout)]
 )
 
 # Import modules after logging configuration
@@ -85,8 +83,7 @@ def handle_chat_query(user_input: str, model_id: str) -> None:
             try:
                 # Get streaming response
                 response_stream, sources, scores = rag_pipeline.query_streaming(
-                    user_input,
-                    model_name=model_id
+                    user_input, model_name=model_id
                 )
                 
                 # Render streaming response
@@ -177,6 +174,67 @@ def check_configuration() -> bool:
         return False
 
 
+def render_sidebar_content() -> Tuple[Optional[List[Tuple[bytes, str]]], str]:
+    """Render sidebar and get user inputs."""
+    files_data, model_id = UIComponents.render_sidebar()
+    
+    # Show any pending error/success messages
+    error_msg = SessionManager.get_error_message()
+    if error_msg:
+        UIComponents.show_error(error_msg)
+    
+    success_msg = SessionManager.get_success_message()
+    if success_msg:
+        UIComponents.show_success(success_msg)
+    
+    return files_data, model_id
+
+
+def render_main_content(files_data: Optional[List[Tuple[bytes, str]]], model_id: str) -> None:
+    """Render main content area."""
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        # Process documents if uploaded
+        if files_data and not SessionManager.is_documents_processed():
+            process_documents(files_data)
+            st.rerun()
+        
+        # Show document processing status
+        if files_data or SessionManager.is_documents_processed():
+            processing_stats = SessionManager.get_processing_stats()
+            UIComponents.render_document_processing_status(files_data or [], processing_stats)
+            st.divider()
+        
+        # Chat interface
+        user_input = UIComponents.render_chat_interface()
+        
+        # Handle chat query
+        if user_input:
+            handle_chat_query(user_input, model_id)
+            st.rerun()
+    
+    with col2:
+        # Show helpful tips
+        st.markdown("### 💡 Tips")
+        st.markdown("""
+        - Upload multiple PDFs for comprehensive answers
+        - Ask specific questions for better results
+        - Try different AI models for varied responses
+        - Use the sources to verify information
+        - Your session will expire after 10 minutes of inactivity
+        """)
+        
+        if SessionManager.is_documents_processed():
+            st.markdown("### ❓ Example Questions")
+            st.markdown("""
+            - "What are the main topics covered?"
+            - "Can you summarize the key findings?"
+            - "What conclusions can be drawn?"
+            - "Are there any recommendations?"
+            """)
+
+
 def main():
     """Main application function."""
     try:
@@ -194,59 +252,10 @@ def main():
         UIComponents.render_session_warnings()
         
         # Render sidebar and get user inputs
-        files_data, model_id = UIComponents.render_sidebar()
-        
-        # Show any pending error/success messages
-        error_msg = SessionManager.get_error_message()
-        if error_msg:
-            UIComponents.show_error(error_msg)
-        
-        success_msg = SessionManager.get_success_message()
-        if success_msg:
-            UIComponents.show_success(success_msg)
+        files_data, model_id = render_sidebar_content()
         
         # Main content area
-        col1, col2 = st.columns([3, 1])
-        
-        with col1:
-            # Process documents if uploaded
-            if files_data and not SessionManager.is_documents_processed():
-                process_documents(files_data)
-                st.rerun()
-            
-            # Show document processing status
-            if files_data or SessionManager.is_documents_processed():
-                processing_stats = SessionManager.get_processing_stats()
-                UIComponents.render_document_processing_status(files_data or [], processing_stats)
-                st.divider()
-            
-            # Chat interface
-            user_input = UIComponents.render_chat_interface()
-            
-            # Handle chat query
-            if user_input:
-                handle_chat_query(user_input, model_id)
-                st.rerun()
-        
-        with col2:
-            # Show helpful tips
-            st.markdown("### 💡 Tips")
-            st.markdown("""
-            - Upload multiple PDFs for comprehensive answers
-            - Ask specific questions for better results
-            - Try different AI models for varied responses
-            - Use the sources to verify information
-            - Your session will expire after 10 minutes of inactivity
-            """)
-            
-            if SessionManager.is_documents_processed():
-                st.markdown("### ❓ Example Questions")
-                st.markdown("""
-                - "What are the main topics covered?"
-                - "Can you summarize the key findings?"
-                - "What conclusions can be drawn?"
-                - "Are there any recommendations?"
-                """)
+        render_main_content(files_data, model_id)
         
         # Render footer
         UIComponents.render_footer()
