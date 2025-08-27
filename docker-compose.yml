@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  rag-app:
+    build: .
+    container_name: rag-document-chat
+    ports:
+      - "8501:8501"
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_SERVER_ENABLE_CORS=false
+      - STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=false
+    volumes:
+      # Mount for development (optional)
+      - ./app.py:/app/app.py:ro
+      - ./core:/app/core:ro
+      - ./ui:/app/ui:ro
+      - ./utils:/app/utils:ro
+      - ./config:/app/config:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - rag-network
+    env_file:
+      - ./.env
+
+networks:
+  rag-network:
+    driver: bridge
