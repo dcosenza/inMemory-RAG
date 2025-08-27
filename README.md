@@ -107,8 +107,10 @@ Automatic Cleanup (LOCAL - session end)
 
 3. **Set your API key**
    ```bash
-   export OPENROUTER_API_KEY="your_actual_api_key_here"
+   # Create .env file in the project root
+   echo "OPENROUTER_API_KEY=your_actual_api_key_here" > .env
    ```
+   
 
 4. **Run with Docker**
    ```bash
